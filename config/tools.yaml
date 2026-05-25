@@ -1,0 +1,26 @@
+# AI Interaction Tracker — Tool Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+# Run `ai-tracker list-tools` to verify paths are found on your machine.
+# ─────────────────────────────────────────────────────────────────────────────
+
+tools:
+  antigravity:
+    # Antigravity IDE stores one session directory (UUID) per conversation under:
+    #   brain/<session-uuid>/.system_generated/logs/transcript.jsonl
+    #   brain/<session-uuid>/.system_generated/logs/overview.txt
+    # Point this at the brain directory — the parser scans all session folders.
+    path: ~/.gemini/antigravity-ide/brain
+    parser: antigravity
+
+  claudecode:
+    # Claude Code projects directory — each sub-folder is one project,
+    # each *.jsonl file inside is one session.
+    path: ~/.claude/projects
+    parser: claudecode
+    # Set to true to also export subagent (sidechain) conversation threads.
+    include_sidechains: false
+
+  codex:
+    # OpenAI Codex CLI session storage (adjust if your version differs).
+    path: ~/.codex
+    parser: codex

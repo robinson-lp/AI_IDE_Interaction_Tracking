@@ -1,0 +1,11 @@
+[Human]
+Explain list comprehensions in Python.
+
+[Assistant]
+List comprehensions provide a concise way to create lists. Example: `[x*2 for x in range(5)]` produces `[0, 2, 4, 6, 8]`.
+
+[Human]
+Can I use conditions in them?
+
+[Assistant]
+Yes. Example: `[x for x in range(10) if x % 2 == 0]` gives all even numbers up to 9.

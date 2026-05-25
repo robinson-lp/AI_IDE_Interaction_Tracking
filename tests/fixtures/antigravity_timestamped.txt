@@ -1,0 +1,2 @@
+Human: [2026-05-20 09:00:00] What is a decorator in Python?
+Assistant: A decorator is a function that wraps another function to extend its behaviour without modifying it directly.

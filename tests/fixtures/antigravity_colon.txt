@@ -1,0 +1,2 @@
+Human: What is the capital of France?
+Assistant: The capital of France is Paris. It is also the largest city in France and serves as the country's political, economic, and cultural hub.

@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: ai-tracker
+Version: 0.1.0
+Summary: Parse AI IDE session files and export structured CSV logs of AI interactions.
+Requires-Python: >=3.10
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-cov>=5.0; extra == "dev"
