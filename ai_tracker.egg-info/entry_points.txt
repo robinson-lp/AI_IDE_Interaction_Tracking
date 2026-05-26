@@ -1,2 +1,0 @@
-[console_scripts]
-ai-tracker = ai_tracker.cli:main
