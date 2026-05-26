@@ -23,6 +23,6 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
-[tool.setuptools]
-packages = ["ai_tracker"]
+[tool.setuptools.packages.find]
+where = ["."]
 

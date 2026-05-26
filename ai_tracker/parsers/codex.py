@@ -59,12 +59,17 @@ class CodexParser(BaseParser):
         except OSError:
             return None
 
-        first_line = content.strip().split("\n")[0].strip()
+        # Find the first non-empty line to determine format.
+        # JSON array files start with "["; everything else is treated as JSONL
+        # (which silently skips malformed lines).
+        first_nonempty = next(
+            (ln.strip() for ln in content.splitlines() if ln.strip()), ""
+        )
         try:
-            if first_line.startswith("{") and first_line.endswith("}"):
-                messages = self._parse_jsonl(content, str(file_path))
-            else:
+            if first_nonempty.startswith("["):
                 messages = self._parse_json_array(content, str(file_path))
+            else:
+                messages = self._parse_jsonl(content, str(file_path))
         except Exception:
             return None
 

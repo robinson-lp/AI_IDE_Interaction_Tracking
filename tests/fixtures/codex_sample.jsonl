@@ -1,0 +1,2 @@
+{"role":"user","content":"How do I sort a list in Python?","timestamp":"2026-05-20T08:00:00Z","session_id":"codex-sess-001"}
+{"role":"assistant","content":"Use sorted() for a new list or .sort() to sort in place.","timestamp":"2026-05-20T08:00:02Z","session_id":"codex-sess-001"}
