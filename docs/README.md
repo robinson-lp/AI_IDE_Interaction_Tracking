@@ -85,12 +85,18 @@ AI TRACKING SYSTEM PYTHON SCRIPT/
 │   └── tools.yaml                  Override tool paths and settings
 │
 ├── docs/
-│   └── README.md                   This file
+│   ├── README.md                   Full technical reference (this file)
+│   ├── user_guide.md               End-to-end user guide
+│   ├── architecture.md             System design and data flow
+│   ├── api_reference.md            Public API for all classes
+│   └── contributing.md             How to add new parsers
+│
+├── scripts/
+│   └── verify_parsers.py           Live parser verification script
 │
 ├── ai-tracker.ps1                  PowerShell run wrapper
-├── verify_parsers.py               Live verification script
 ├── pyproject.toml                  Package definition
-└── IMPLEMENTATION.md               Implementation summary
+└── CHANGELOG.md                    Version history
 ```
 
 ---

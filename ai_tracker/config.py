@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -56,5 +57,4 @@ def load_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
 
 
 def _deep_copy(obj: Any) -> Any:
-    import copy
     return copy.deepcopy(obj)

@@ -133,14 +133,29 @@ tools:
 ## 🧪 Verification and Testing
 
 ### Quick Diagnostics Script
-To inspect a live summary of detected conversations without writing a CSV, run:
+To inspect a live summary of detected conversations without writing a CSV:
 ```powershell
-python verify_parsers.py
+$py = "C:\Program Files\PostgreSQL\17\pgAdmin 4\python\python.exe"
+$projectDir = "c:\Users\Robin\AI TRACKING SYSTEM PYTHON SCRIPT"
+& $py -c "import sys; sys.path.insert(0, r'$projectDir'); exec(open(r'$projectDir\scripts\verify_parsers.py').read())"
 ```
 
 ### Running Unit Tests
-If you would like to run the test suite, install `dev` packages and run `pytest`:
-```bash
-pip install -e ".[dev]"
-pytest
+```powershell
+$py = "C:\Program Files\PostgreSQL\17\pgAdmin 4\python\python.exe"
+$env:PYTHONPATH = "c:\Users\Robin\AI TRACKING SYSTEM PYTHON SCRIPT"
+& $py -m pytest tests -v
 ```
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|---|---|
+| [docs/user_guide.md](docs/user_guide.md) | End-to-end guide: install, run, configure, troubleshoot |
+| [docs/README.md](docs/README.md) | Full technical reference for all components |
+| [docs/architecture.md](docs/architecture.md) | System design, data flow, parser design |
+| [docs/api_reference.md](docs/api_reference.md) | Public API for all classes and functions |
+| [docs/contributing.md](docs/contributing.md) | How to add support for a new AI tool |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
