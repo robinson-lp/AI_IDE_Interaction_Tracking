@@ -121,7 +121,7 @@ class CodexParser(BaseParser):
         role = record.get("role", record.get("type", ""))
         content = record.get("content", record.get("text", record.get("message", "")))
         if isinstance(content, list):
-            content = " ".join(
+            content = "\n".join(
                 b.get("text", "")
                 for b in content
                 if isinstance(b, dict) and b.get("type") == "text"
@@ -132,7 +132,7 @@ class CodexParser(BaseParser):
             session_id=record.get("session_id", session_id),
             timestamp=_parse_timestamp(record.get("timestamp", record.get("created_at"))),
             role=_normalise_role(role),
-            message=str(content).strip(),
+            message=str(content),
             tool=self.tool_name,
             file_path=file_path,
         )

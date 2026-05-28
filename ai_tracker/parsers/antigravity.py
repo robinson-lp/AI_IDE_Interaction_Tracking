@@ -139,8 +139,8 @@ class AntigravityParser(BaseParser):
 
         # AI thinking (readable response — skip pure tool-call records)
         if source == _AI_SOURCE and rtype == _AI_TYPE:
-            thinking = record.get("thinking", "").strip()
-            if not thinking:
+            thinking = record.get("thinking", "")
+            if not thinking.strip():
                 return None
             return Message(
                 session_id=session_id,

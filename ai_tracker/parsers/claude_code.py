@@ -131,14 +131,14 @@ class ClaudeCodeParser(BaseParser):
 
 def _extract_text(content: object) -> str:
     if isinstance(content, str):
-        return content.strip()
+        return content
     if isinstance(content, list):
         parts = [
             b.get("text", "")
             for b in content
             if isinstance(b, dict) and b.get("type") == "text"
         ]
-        return " ".join(parts).strip()
+        return "\n".join(parts)
     return ""
 
 
