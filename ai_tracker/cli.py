@@ -70,6 +70,9 @@ def cmd_parse(args: argparse.Namespace) -> int:
     tools = list(PARSER_REGISTRY) if args.tool == "all" else [args.tool]
     file_override = Path(args.file) if args.file else None
 
+    if args.end_date:
+        args.end_date = args.end_date.replace(hour=23, minute=59, second=59)
+
     all_messages: List[Message] = []
     had_error = False
 
