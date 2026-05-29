@@ -95,6 +95,8 @@ def cmd_parse(args: argparse.Namespace) -> int:
         print("No messages found. Nothing exported.", file=sys.stderr)
         return 1
 
+    all_messages.sort(key=lambda m: m.timestamp.isoformat() if m.timestamp else "")
+
     output = Path(args.output) if args.output else _default_output()
     exporter = CSVExporter(output)
     count = exporter.export(all_messages)

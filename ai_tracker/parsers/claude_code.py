@@ -62,6 +62,7 @@ class ClaudeCodeParser(BaseParser):
             session = self._parse_jsonl_file(jsonl_file)
             if session:
                 sessions.append(session)
+        sessions.sort(key=lambda s: s.messages[0].timestamp.isoformat() if s.messages[0].timestamp else "")
         return sessions
 
     def _parse_jsonl_file(self, file_path: Path) -> Optional[ParsedSession]:

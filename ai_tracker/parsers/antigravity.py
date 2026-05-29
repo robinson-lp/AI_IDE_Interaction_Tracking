@@ -72,6 +72,7 @@ class AntigravityParser(BaseParser):
             session = self._parse_log_file(log_file, session_dir.name)
             if session:
                 sessions.append(session)
+        sessions.sort(key=lambda s: s.messages[0].timestamp.isoformat() if s.messages[0].timestamp else "")
         return sessions
 
     def _find_log_file(self, session_dir: Path) -> Optional[Path]:
