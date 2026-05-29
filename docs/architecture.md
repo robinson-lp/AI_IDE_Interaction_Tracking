@@ -64,13 +64,17 @@ docs/                         This documentation
 cmd_parse()
 │
 ├─ load_config()                     Read config/tools.yaml (merge over defaults)
+├─ end_date adjusted to 23:59:59     Ensures full-day coverage when date-only supplied
 │
 └─ for each tool:
     ├─ resolve path                  str → Path → .expanduser()
     ├─ get_parser(tool, path)        Registry lookup → instantiate parser class
-    ├─ parser.parse()                Return List[ParsedSession]
+    ├─ parser.parse()                Return List[ParsedSession] (sorted by first-message timestamp)
     ├─ parser.filter_by_date(...)    Optional date-range filter
     └─ flatten messages              session.messages for each session
+│
+├─ optional --project filter         Keep only messages whose project matches
+├─ sort all_messages by timestamp    Global chronological order across all tools
 │
 └─ CSVExporter.export(all_messages)  Write UTF-8 CSV
 ```
@@ -78,10 +82,11 @@ cmd_parse()
 ### Message lifecycle
 
 1. A raw JSON record is read from a source file
-2. The parser maps its fields to a `Message` dataclass instance
-3. `Message` is appended to a `ParsedSession`
-4. All sessions from all tools are flattened into one `List[Message]`
-5. `CSVExporter` calls `message.to_dict()` and writes each row
+2. The parser resolves the **project name** for the session (see Session Categorization below)
+3. The parser maps its fields to a `Message` dataclass instance (including `project`)
+4. `Message` is appended to a `ParsedSession`
+5. All sessions from all tools are flattened into one `List[Message]`, sorted globally by timestamp
+6. `CSVExporter` calls `message.to_dict()` and writes each row
 
 ---
 
@@ -100,9 +105,10 @@ class Message:
     message: str               # Full text content
     tool: str                  # "antigravity" | "claudecode" | "codex"
     file_path: str             # Absolute path of source file
+    project: str               # Resolved project name (default: "General")
 ```
 
-`to_dict()` serialises to a flat dict with keys matching the CSV column order.
+`to_dict()` serialises to a flat dict with `project` as the first key, matching the CSV column order.
 
 ### `ParsedSession`
 
@@ -114,6 +120,7 @@ class ParsedSession:
     session_id: str
     tool: str
     file_path: str
+    project: str               # Resolved project name (default: "General")
     messages: List[Message]
 ```
 
@@ -138,7 +145,15 @@ class BaseParser(ABC):
     def filter_by_date(...) -> List[ParsedSession]: ...
 ```
 
-Adding a new parser is a matter of subclassing `BaseParser` and implementing `parse()`. Everything else (date filtering, path validation, CSV export) is already provided.
+`base.py` also exports a shared helper used by all parsers:
+
+```python
+def _clean_project_name(name: str) -> str: ...
+```
+
+This normalises raw directory slugs (e.g. `c--Users-Robin-AI-TRACKING-SYSTEM-PYTHON-SCRIPT`) into human-readable project titles (e.g. `Ai Tracking System Python Script`) by stripping path prefixes, replacing hyphens/underscores with spaces, and applying title-case.
+
+Adding a new parser is a matter of subclassing `BaseParser` and implementing `parse()`. Everything else (date filtering, path validation, project name cleaning, CSV export) is already provided.
 
 ### Parser Registry
 
@@ -173,6 +188,86 @@ _DEFAULT_CONFIG   (hardcoded in config.py)
 Only keys present in `tools.yaml` are overwritten. Keys not mentioned keep their defaults. This means partial YAML files are safe — you can override just one tool's path without touching the others.
 
 Paths from the config (which may contain `~`) are expanded with `.expanduser()` at the point of use in `cli.py`, not at load time. This allows the config dict to be serialised or inspected with the original `~` notation intact.
+
+---
+
+## Session Categorization by Project
+
+Every `Message` and `ParsedSession` carries a `project` field that identifies which workspace or codebase the conversation was about. Each parser resolves this name differently based on what metadata is available in its source files.
+
+### Claude Code
+
+The project name is derived from the **file path** of the session JSONL file. Claude Code stores sessions under:
+
+```
+~/.claude/projects/<project-slug>/<session-uuid>.jsonl
+```
+
+The `<project-slug>` directory name is the raw slug Claude Code generates from the workspace path (e.g. `c--Users-Robin-AI-TRACKING-SYSTEM-PYTHON-SCRIPT`). The parser extracts this slug and passes it through `_clean_project_name()` to produce a readable title.
+
+```python
+parts = file_path.parts
+idx = parts.index("projects")
+project_name = _clean_project_name(parts[idx + 1])
+```
+
+### Antigravity IDE
+
+Antigravity does not encode the project in the file path — all sessions live under the same `brain/` directory regardless of workspace. Instead, the parser scans the `<ADDITIONAL_METADATA>` block embedded in the first user message record of the session and applies three detection strategies in priority order:
+
+| Priority | Strategy | Detected from |
+|---|---|---|
+| A | Workspace mapping | `C:\path\to\project -> username/repo-name` pattern |
+| B | Active Document path | `Active Document: C:\Users\Robin\ProjectFolder\file.py` |
+| C | General path fallback | Any `C:\Users\username\FolderName` pattern |
+
+All three options pass the extracted name through `_clean_project_name()`. If none match, the session is assigned `"General"`.
+
+```python
+def _extract_project_name(self, records: List[dict]) -> str:
+    for record in records:
+        if source == USER_EXPLICIT and type == USER_INPUT:
+            # Try Option A, B, C in order
+            ...
+    return "General"
+```
+
+### Codex
+
+Uses the same file-path strategy as Claude Code — extracts the folder name immediately after a `projects/` directory component, if present. Otherwise falls back to `"General"`.
+
+### `_clean_project_name()` — Normalization Rules
+
+| Input slug | Output |
+|---|---|
+| `c--Users-Robin-AI-TRACKING-SYSTEM-PYTHON-SCRIPT` | `Ai Tracking System Python Script` |
+| `AI-TRACKING-SYSTEM` | `Ai Tracking System` |
+| `Users-Robin-my-project` → strips `Users-Robin-` prefix | `My Project` |
+| `""` or unresolvable | `General` |
+
+The function strips OS path prefixes (`c--`, `Users-<name>-`, `home-<name>-`), replaces hyphens and underscores with spaces, collapses extra whitespace, and applies `.title()`.
+
+### CSV Column
+
+The resolved project name appears as the **first column** in every exported CSV:
+
+```
+project | session_id | timestamp | role | message | tool | file_path
+```
+
+### CLI Filter
+
+Use `--project` to export messages for a specific project only:
+
+```powershell
+ai-tracker parse --tool all --project "AI Tracking System Python Script" -o project.csv
+```
+
+The filter is case-insensitive and uses substring matching, so partial names work:
+
+```powershell
+ai-tracker parse --tool all --project "tracking" -o tracking.csv
+```
 
 ---
 

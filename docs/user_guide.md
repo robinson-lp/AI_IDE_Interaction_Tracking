@@ -13,10 +13,11 @@ This guide walks you through installing, configuring, and running `ai-tracker` t
 3. [Your First Run](#3-your-first-run)
 4. [Commands](#4-commands)
 5. [Filtering by Date](#5-filtering-by-date)
-6. [Configuration](#6-configuration)
-7. [Understanding the CSV Output](#7-understanding-the-csv-output)
-8. [Supported Tools](#8-supported-tools)
-9. [Troubleshooting](#9-troubleshooting)
+6. [Filtering by Project](#6-filtering-by-project)
+7. [Configuration](#7-configuration)
+8. [Understanding the CSV Output](#8-understanding-the-csv-output)
+9. [Supported Tools](#9-supported-tools)
+10. [Troubleshooting](#10-troubleshooting)
 
 ---
 
@@ -111,8 +112,9 @@ Parses session files and writes a CSV file.
 | `--output` | `-o` | `ai_interactions_<timestamp>.csv` | Output CSV file path |
 | `--file` | `-f` | *(tool default)* | Override the source file or directory for the chosen tool |
 | `--start-date` | | *(none)* | Include messages on or after this date (`YYYY-MM-DD`) |
-| `--end-date` | | *(none)* | Include messages up to this date (`YYYY-MM-DD`) |
+| `--end-date` | | *(none)* | Include messages up to and including this date (`YYYY-MM-DD`) |
 | `--include-sidechains` | | `false` | (Claude Code only) Also include subagent / sidechain threads |
+| `--project` | | *(none)* | Include only messages whose project name contains this string (case-insensitive) |
 
 #### Common examples
 
@@ -138,6 +140,24 @@ Parses session files and writes a CSV file.
 
 ---
 
+#### Common examples
+
+```powershell
+# Export all tools, all projects
+.\ai-tracker.ps1 parse --tool all --output all_interactions.csv
+
+# Export a specific project only
+.\ai-tracker.ps1 parse --tool all --project "AI Tracking System Python Script" --output tracking.csv
+
+# Export today's interactions
+.\ai-tracker.ps1 parse --tool all --start-date 2026-05-29 --end-date 2026-05-29 --output today.csv
+
+# Export Claude Code with subagent threads for a specific project
+.\ai-tracker.ps1 parse --tool claudecode --include-sidechains --project "tracking" --output claude_tracking.csv
+```
+
+---
+
 ## 5. Filtering by Date
 
 Use `--start-date` and/or `--end-date` to limit results to a specific time window.
@@ -156,7 +176,36 @@ Messages without a timestamp are always included.
 
 ---
 
-## 6. Configuration
+---
+
+## 6. Filtering by Project
+
+Every message in the CSV has a `project` column that identifies which workspace the conversation was about. You can use `--project` to export interactions for one project only.
+
+```powershell
+# Full project name (case-insensitive)
+.\ai-tracker.ps1 parse --tool all --project "AI Tracking System Python Script" --output tracking.csv
+
+# Partial match also works
+.\ai-tracker.ps1 parse --tool all --project "tracking" --output tracking.csv
+.\ai-tracker.ps1 parse --tool all --project "chrome" --output chrome.csv
+```
+
+### How project names are resolved
+
+Each tool uses a different strategy to determine the project:
+
+| Tool | How project is detected |
+|---|---|
+| **Claude Code** | Extracted from the project folder name in the file path (`~/.claude/projects/<project-slug>/`) |
+| **Antigravity** | Scanned from `<ADDITIONAL_METADATA>` in the first user message — looks for workspace path, active document path, or any `C:\Users\name\Folder` pattern |
+| **Codex** | Same file-path strategy as Claude Code |
+
+All raw slugs (e.g. `c--Users-Robin-AI-TRACKING-SYSTEM-PYTHON-SCRIPT`) are automatically cleaned into readable titles (e.g. `Ai Tracking System Python Script`). Sessions that cannot be matched to a project are labelled `General`.
+
+---
+
+## 7. Configuration
 
 Default data paths are built in for each tool:
 
@@ -187,12 +236,13 @@ Changes take effect immediately — no restart needed.
 
 ---
 
-## 7. Understanding the CSV Output
+## 8. Understanding the CSV Output
 
 Each row in the CSV represents one message (one human prompt or one AI response).
 
 | Column | Description | Example |
 |---|---|---|
+| `project` | Resolved project/workspace name | `Ai Tracking System Python Script` |
 | `session_id` | UUID identifying the session | `412a0856-1411-4a2f-900c-772ff7a42970` |
 | `timestamp` | When the message was recorded (ISO 8601) | `2026-05-20T06:09:37.467000+00:00` |
 | `role` | `human` or `assistant` | `human` |
@@ -200,11 +250,11 @@ Each row in the CSV represents one message (one human prompt or one AI response)
 | `tool` | Which IDE tool produced the message | `claudecode` |
 | `file_path` | Absolute path of the source file | `C:\Users\Robin\.claude\projects\...\session.jsonl` |
 
-Messages from all tools are combined in a single file when `--tool all` is used, sorted in the order they were parsed.
+Messages from all tools are combined in a single file when `--tool all` is used, sorted globally in chronological order by timestamp.
 
 ---
 
-## 8. Supported Tools
+## 9. Supported Tools
 
 ### Antigravity IDE
 
@@ -222,7 +272,7 @@ Reads session files from `~/.codex/`. Both JSON arrays and JSONL formats are sup
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 **`list-tools` shows `not found` for a tool**
 

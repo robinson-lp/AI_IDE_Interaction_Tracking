@@ -2,12 +2,13 @@
 
 import argparse
 import csv
+import json
 from datetime import datetime
 from pathlib import Path
 
 import pytest
 
-from ai_tracker.cli import cmd_list_tools, cmd_parse
+from ai_tracker.cli import _project_to_filename, cmd_list_tools, cmd_parse
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CC_FIXTURE = FIXTURES / "claude_code_sample.jsonl"
@@ -22,9 +23,27 @@ def _args(**kwargs) -> argparse.Namespace:
         "start_date": None,
         "end_date": None,
         "include_sidechains": False,
+        "project": None,
+        "split_by_project": False,
     }
     defaults.update(kwargs)
     return argparse.Namespace(**defaults)
+
+
+def _make_project_sessions(root: Path, slugs: list[str], text: str = "Q") -> None:
+    """Write one minimal JSONL session file per project slug under root/projects/<slug>/."""
+    for slug in slugs:
+        d = root / slug
+        d.mkdir(parents=True, exist_ok=True)
+        record = {
+            "type": "user",
+            "isSidechain": False,
+            "message": {"role": "user", "content": [{"type": "text", "text": f"{text} from {slug}"}]},
+            "uuid": "u1",
+            "timestamp": "2026-05-01T10:00:00Z",
+            "sessionId": "sess-1",
+        }
+        (d / "session.jsonl").write_text(json.dumps(record) + "\n", encoding="utf-8")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -197,3 +216,66 @@ class TestParseErrors:
         out = tmp_path / "out.csv"
         rc = cmd_parse(_args(tool="claudecode", file=str(empty), output=str(out)))
         assert rc == 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# parse — split by project
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSplitByProject:
+    def test_creates_one_csv_per_project(self, tmp_path):
+        projects = tmp_path / "projects"
+        _make_project_sessions(projects, ["alpha", "beta"])
+        out_dir = tmp_path / "out"
+        rc = cmd_parse(_args(tool="claudecode", file=str(projects), output=str(out_dir), split_by_project=True))
+        assert rc == 0
+        assert len(list(out_dir.glob("*.csv"))) == 2
+
+    def test_each_csv_contains_only_its_project_messages(self, tmp_path):
+        projects = tmp_path / "projects"
+        _make_project_sessions(projects, ["alpha", "beta"])
+        out_dir = tmp_path / "out"
+        cmd_parse(_args(tool="claudecode", file=str(projects), output=str(out_dir), split_by_project=True))
+        for f in out_dir.glob("*.csv"):
+            with open(f, encoding="utf-8") as fh:
+                rows = list(csv.DictReader(fh))
+            # Each project has exactly 1 message
+            assert len(rows) == 1
+            # All rows share the same project value
+            projects_in_file = {r["project"] for r in rows}
+            assert len(projects_in_file) == 1
+
+    def test_filenames_are_sanitized_project_names(self, tmp_path):
+        projects = tmp_path / "projects"
+        _make_project_sessions(projects, ["my-cool-project"])
+        out_dir = tmp_path / "out"
+        cmd_parse(_args(tool="claudecode", file=str(projects), output=str(out_dir), split_by_project=True))
+        stems = {f.stem for f in out_dir.glob("*.csv")}
+        assert _project_to_filename("My Cool Project") in stems
+
+    def test_default_output_dir_created_when_no_output(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        projects = tmp_path / "projects"
+        _make_project_sessions(projects, ["alpha"])
+        cmd_parse(_args(tool="claudecode", file=str(projects), output=None, split_by_project=True))
+        dirs = list(tmp_path.glob("ai_projects_*"))
+        assert len(dirs) == 1 and dirs[0].is_dir()
+
+    def test_project_filter_combined_with_split(self, tmp_path):
+        projects = tmp_path / "projects"
+        _make_project_sessions(projects, ["alpha", "beta"])
+        out_dir = tmp_path / "out"
+        # filter to only "alpha" then split — should produce exactly 1 file
+        cmd_parse(_args(
+            tool="claudecode",
+            file=str(projects),
+            output=str(out_dir),
+            split_by_project=True,
+            project="alpha",
+        ))
+        assert len(list(out_dir.glob("*.csv"))) == 1
+
+    def test_project_to_filename_sanitizes_spaces_and_case(self):
+        assert _project_to_filename("AI Tracking System") == "ai_tracking_system"
+        assert _project_to_filename("My Cool Project") == "my_cool_project"
+        assert _project_to_filename("") == "general"

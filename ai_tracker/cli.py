@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from .config import DEFAULT_TOOL_PATHS, load_config
 from .exporters.csv_exporter import CSVExporter
@@ -31,6 +33,17 @@ def _date_arg(value: str) -> datetime:
 
 def _default_output() -> Path:
     return Path(f"ai_interactions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+
+
+def _default_output_dir() -> Path:
+    return Path(f"ai_projects_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+
+
+def _project_to_filename(project: str) -> str:
+    """Convert a project display name to a safe, lowercase filename stem."""
+    safe = re.sub(r"[^\w\s-]", "", project).strip()
+    safe = re.sub(r"\s+", "_", safe).lower()
+    return safe or "general"
 
 
 # ------------------------------------------------------------------
@@ -104,10 +117,33 @@ def cmd_parse(args: argparse.Namespace) -> int:
 
     all_messages.sort(key=lambda m: m.timestamp.isoformat() if m.timestamp else "")
 
+    if getattr(args, "split_by_project", False):
+        return _export_by_project(all_messages, args.output, had_error)
+
     output = Path(args.output) if args.output else _default_output()
     exporter = CSVExporter(output)
     count = exporter.export(all_messages)
     print(f"\nExported {count} message(s) -> {output}")
+    return 1 if had_error else 0
+
+
+def _export_by_project(messages: List[Message], output_arg: Optional[str], had_error: bool) -> int:
+    out_dir = Path(output_arg) if output_arg else _default_output_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    by_project: Dict[str, List[Message]] = defaultdict(list)
+    for m in messages:
+        by_project[m.project].append(m)
+
+    total = 0
+    for project in sorted(by_project):
+        msgs = by_project[project]
+        fname = _project_to_filename(project) + ".csv"
+        CSVExporter(out_dir / fname).export(msgs)
+        total += len(msgs)
+        print(f"  [{project}] {len(msgs)} message(s) -> {out_dir / fname}")
+
+    print(f"\nExported {total} message(s) across {len(by_project)} project(s) -> {out_dir}{chr(47)}")
     return 1 if had_error else 0
 
 
@@ -179,7 +215,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--project",
         metavar="PROJECT",
-        help="Include only messages matching this specific project name.",
+        help="Include only messages whose project name contains this string (case-insensitive).",
+    )
+    p.add_argument(
+        "--split-by-project",
+        action="store_true",
+        default=False,
+        dest="split_by_project",
+        help=(
+            "Write one CSV per project into a directory instead of one flat file. "
+            "--output becomes the directory path. "
+            "Default directory: ai_projects_<timestamp>/"
+        ),
     )
 
     # ── list-tools ───────────────────────────────────────────────────
