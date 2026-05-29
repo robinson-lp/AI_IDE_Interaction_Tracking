@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from ..models import Message, ParsedSession
-from .base import BaseParser
+from .base import BaseParser, _clean_project_name
 
 # Extracts text between <USER_REQUEST> tags in the content field
 _USER_REQUEST_RE = re.compile(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", re.DOTALL)
@@ -90,7 +90,7 @@ class AntigravityParser(BaseParser):
     # ------------------------------------------------------------------
 
     def _parse_log_file(self, log_file: Path, session_id: str) -> Optional[ParsedSession]:
-        messages: List[Message] = []
+        records: List[dict] = []
         try:
             with open(log_file, "r", encoding="utf-8", errors="replace") as fh:
                 for raw in fh:
@@ -99,13 +99,22 @@ class AntigravityParser(BaseParser):
                         continue
                     try:
                         record = json.loads(raw)
+                        records.append(record)
                     except json.JSONDecodeError:
                         continue
-                    msg = self._record_to_message(record, session_id, str(log_file))
-                    if msg:
-                        messages.append(msg)
         except OSError:
             return None
+
+        if not records:
+            return None
+
+        project_name = self._extract_project_name(records)
+
+        messages: List[Message] = []
+        for record in records:
+            msg = self._record_to_message(record, session_id, str(log_file), project_name)
+            if msg:
+                messages.append(msg)
 
         if not messages:
             return None
@@ -114,11 +123,40 @@ class AntigravityParser(BaseParser):
             session_id=session_id,
             tool=self.tool_name,
             file_path=str(log_file),
+            project=project_name,
             messages=messages,
         )
 
+    def _extract_project_name(self, records: List[dict]) -> str:
+        """Scan session records for active workspace or document metadata to determine the project name."""
+        for record in records:
+            if record.get("source") == _HUMAN_SOURCE and record.get("type") == _HUMAN_TYPE:
+                content = record.get("content", "")
+                
+                # Option A: Look for user workspace mapping:
+                # e.g. "c:\Users\Robin\AI TRACKING SYSTEM PYTHON SCRIPT -> robinson-lp/AI-TRACKING-SYSTEM-PYTHON-SCRIPT"
+                m_workspace = re.search(r"(\w:\\[^\n->]+?)\s*->\s*[^/\n]+/([\w-]+)", content)
+                if m_workspace:
+                    return _clean_project_name(m_workspace.group(2))
+                
+                # Option B: Look for Active Document:
+                # e.g. "Active Document: c:\Users\Robin\AI TRACKING SYSTEM PYTHON SCRIPT\tests\test_antigravity_greeting.py"
+                m_doc = re.search(r"Active Document:\s*(\w:\\[^\n]+)", content)
+                if m_doc:
+                    doc_path = Path(m_doc.group(1).strip())
+                    parts = doc_path.parts
+                    if len(parts) > 3 and parts[1].lower() == "users":
+                        return _clean_project_name(parts[3])
+                
+                # Option C: General windows folder fallback for any Users\username\Folder path
+                m_users = re.search(r"\w:\\Users\\[^\\]+\\([^\\]+)", content)
+                if m_users:
+                    return _clean_project_name(m_users.group(1))
+                    
+        return "General"
+
     def _record_to_message(
-        self, record: dict, session_id: str, file_path: str
+        self, record: dict, session_id: str, file_path: str, project_name: str = "General"
     ) -> Optional[Message]:
         source = record.get("source", "")
         rtype = record.get("type", "")
@@ -136,6 +174,7 @@ class AntigravityParser(BaseParser):
                 message=text,
                 tool=self.tool_name,
                 file_path=file_path,
+                project=project_name,
             )
 
         # AI thinking (readable response — skip pure tool-call records)
@@ -150,6 +189,7 @@ class AntigravityParser(BaseParser):
                 message=thinking,
                 tool=self.tool_name,
                 file_path=file_path,
+                project=project_name,
             )
 
         return None

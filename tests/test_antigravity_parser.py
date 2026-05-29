@@ -186,3 +186,22 @@ class TestEdgeCases:
         f = tmp_path / "transcript.jsonl"
         f.write_text("", encoding="utf-8")
         assert AntigravityParser(f).parse() == []
+
+    def test_extracts_project_name_from_user_request_metadata(self, tmp_path):
+        f = tmp_path / "transcript.jsonl"
+        f.write_text(
+            json.dumps({
+                "step_index": 0,
+                "source": "USER_EXPLICIT",
+                "type": "USER_INPUT",
+                "status": "DONE",
+                "created_at": "2026-05-22T06:00:00Z",
+                "content": "<USER_REQUEST>\nHow do I reverse a list?\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nActive Document: c:\\Users\\Robin\\my-web-backend-project\\app.py\n</ADDITIONAL_METADATA>",
+            }) + "\n",
+            encoding="utf-8",
+        )
+        sessions = AntigravityParser(f).parse()
+        assert len(sessions) == 1
+        assert sessions[0].project == "My Web Backend Project"
+        assert sessions[0].messages[0].project == "My Web Backend Project"
+

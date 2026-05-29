@@ -68,7 +68,7 @@ class TestParseSuccess:
         cmd_parse(_args(tool="claudecode", file=str(CC_FIXTURE), output=str(out)))
         with open(out, encoding="utf-8") as fh:
             fieldnames = csv.DictReader(fh).fieldnames
-        assert fieldnames == ["session_id", "timestamp", "role", "message", "tool", "file_path"]
+        assert fieldnames == ["project", "session_id", "timestamp", "role", "message", "tool", "file_path"]
 
     def test_csv_rows_match_parsed_count(self, tmp_path):
         out = tmp_path / "out.csv"
@@ -149,6 +149,30 @@ class TestParseDateFilter:
         with open(out, encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))
         assert len(rows) == 4
+
+    def test_project_filter_includes_only_matching(self, tmp_path):
+        out = tmp_path / "out.csv"
+        rc = cmd_parse(_args(
+            tool="claudecode",
+            file=str(CC_FIXTURE),
+            output=str(out),
+            project="General",
+        ))
+        assert rc == 0
+        with open(out, encoding="utf-8") as fh:
+            rows = list(csv.DictReader(fh))
+        assert len(rows) == 4
+
+    def test_project_filter_excludes_nonmatching(self, tmp_path, capsys):
+        out = tmp_path / "out.csv"
+        rc = cmd_parse(_args(
+            tool="claudecode",
+            file=str(CC_FIXTURE),
+            output=str(out),
+            project="NonmatchingProject",
+        ))
+        assert rc == 1
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

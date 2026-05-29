@@ -94,6 +94,10 @@ def cmd_parse(args: argparse.Namespace) -> int:
             print(f"  [{tool}] Error — {exc}", file=sys.stderr)
             had_error = True
 
+    if getattr(args, "project", None):
+        proj_filter = args.project.lower().strip()
+        all_messages = [m for m in all_messages if proj_filter in m.project.lower()]
+
     if not all_messages:
         print("No messages found. Nothing exported.", file=sys.stderr)
         return 1
@@ -171,6 +175,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="(claudecode) Include subagent / sidechain conversations.",
+    )
+    p.add_argument(
+        "--project",
+        metavar="PROJECT",
+        help="Include only messages matching this specific project name.",
     )
 
     # ── list-tools ───────────────────────────────────────────────────

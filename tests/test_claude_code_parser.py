@@ -105,3 +105,19 @@ class TestClaudeCodeParserDirectory:
         )
         sessions = ClaudeCodeParser(tmp_path, include_sidechains=False).parse()
         assert sessions == []
+
+    def test_extracts_project_name_from_projects_dir(self, tmp_path):
+        # Create a mock path containing projects/c--Users-Robin-my-test-project/
+        proj_dir = tmp_path / "projects" / "c--Users-Robin-my-test-project"
+        proj_dir.mkdir(parents=True)
+        sess_file = proj_dir / "session.jsonl"
+        sess_file.write_text(
+            '{"type":"user","isSidechain":false,"message":{"role":"user","content":[{"type":"text","text":"Q"}]},'
+            '"uuid":"u1","timestamp":"2026-05-01T10:00:00Z","sessionId":"sess-1"}\n',
+            encoding="utf-8",
+        )
+        sessions = ClaudeCodeParser(sess_file).parse()
+        assert len(sessions) == 1
+        assert sessions[0].project == "My Test Project"
+        assert sessions[0].messages[0].project == "My Test Project"
+

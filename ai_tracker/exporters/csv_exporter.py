@@ -6,8 +6,7 @@ from typing import List
 
 from ..models import Message
 
-# Canonical column order — matches the schema defined in the proposal
-FIELDNAMES = ["session_id", "timestamp", "role", "message", "tool", "file_path"]
+FIELDNAMES = ["project", "session_id", "timestamp", "role", "message", "tool", "file_path"]
 
 
 class CSVExporter:

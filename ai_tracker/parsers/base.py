@@ -55,3 +55,37 @@ def _in_range(
     if end and ts.replace(tzinfo=None) > end.replace(tzinfo=None):
         return False
     return True
+
+
+def _clean_project_name(name: str) -> str:
+    """Normalize project directory names or slugs into clean titles."""
+    if not name:
+        return "General"
+    
+    cleaned = name.strip()
+    
+    # Strip common system prefix directories from tools like Claude Code (e.g. c--Users-Robin-xxx)
+    if "--" in cleaned:
+        parts = cleaned.split("--")
+        if len(parts) > 1:
+            cleaned = parts[-1]
+            
+    # Check for username / Users / home prefix patterns to remove them
+    slug_parts = cleaned.split("-")
+    if len(slug_parts) > 2:
+        if slug_parts[0].lower() == "users":
+            slug_parts = slug_parts[2:]
+            cleaned = "-".join(slug_parts)
+        elif len(slug_parts) > 3 and slug_parts[0].lower() == "c" and slug_parts[1].lower() == "users":
+            slug_parts = slug_parts[3:]
+            cleaned = "-".join(slug_parts)
+        elif slug_parts[0].lower() == "home":
+            slug_parts = slug_parts[2:]
+            cleaned = "-".join(slug_parts)
+            
+    # Replace hyphens and underscores with spaces, strip, and capitalize each word
+    cleaned = cleaned.replace("-", " ").replace("_", " ")
+    cleaned = " ".join(cleaned.split()) # clean up extra whitespaces
+    
+    return cleaned.title() if cleaned else "General"
+

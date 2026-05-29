@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from ..models import Message, ParsedSession
-from .base import BaseParser
+from .base import BaseParser, _clean_project_name
 
 
 class ClaudeCodeParser(BaseParser):
@@ -72,6 +72,17 @@ class ClaudeCodeParser(BaseParser):
         except ValueError:
             session_id = file_path.stem
 
+        # Extract project slug from file_path parts
+        project_name = "General"
+        try:
+            parts = file_path.parts
+            if "projects" in parts:
+                idx = parts.index("projects")
+                if idx + 1 < len(parts):
+                    project_name = _clean_project_name(parts[idx + 1])
+        except Exception:
+            pass
+
         messages: List[Message] = []
         try:
             with open(file_path, "r", encoding="utf-8") as fh:
@@ -83,7 +94,7 @@ class ClaudeCodeParser(BaseParser):
                         record = json.loads(raw)
                     except json.JSONDecodeError:
                         continue
-                    msg = self._record_to_message(record, session_id, str(file_path))
+                    msg = self._record_to_message(record, session_id, str(file_path), project_name)
                     if msg:
                         messages.append(msg)
         except OSError:
@@ -96,11 +107,12 @@ class ClaudeCodeParser(BaseParser):
             session_id=session_id,
             tool=self.tool_name,
             file_path=str(file_path),
+            project=project_name,
             messages=messages,
         )
 
     def _record_to_message(
-        self, record: dict, session_id: str, file_path: str
+        self, record: dict, session_id: str, file_path: str, project_name: str = "General"
     ) -> Optional[Message]:
         if record.get("type") not in ("user", "assistant"):
             return None
@@ -123,6 +135,7 @@ class ClaudeCodeParser(BaseParser):
             message=text,
             tool=self.tool_name,
             file_path=file_path,
+            project=project_name,
         )
 
 

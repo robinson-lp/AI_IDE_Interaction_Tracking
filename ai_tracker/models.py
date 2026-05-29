@@ -15,9 +15,11 @@ class Message:
     message: str
     tool: str       # "antigravity" | "claudecode" | "codex"
     file_path: str  # source file for audit trail
+    project: str = "General"  # active project name
 
     def to_dict(self) -> dict:
         return {
+            "project": self.project,
             "session_id": self.session_id,
             "timestamp": self.timestamp.isoformat() if self.timestamp else "",
             "role": self.role,
@@ -34,4 +36,6 @@ class ParsedSession:
     session_id: str
     tool: str
     file_path: str
+    project: str = "General"  # active project name
     messages: List[Message] = field(default_factory=list)
+

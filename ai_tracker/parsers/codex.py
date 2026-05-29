@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from ..models import Message, ParsedSession
-from .base import BaseParser
+from .base import BaseParser, _clean_project_name
 
 
 class CodexParser(BaseParser):
@@ -59,6 +59,17 @@ class CodexParser(BaseParser):
         except OSError:
             return None
 
+        # Extract project slug from file_path parts if under a projects subfolder, or use default
+        project_name = "General"
+        try:
+            parts = file_path.parts
+            if "projects" in parts:
+                idx = parts.index("projects")
+                if idx + 1 < len(parts):
+                    project_name = _clean_project_name(parts[idx + 1])
+        except Exception:
+            pass
+
         # Find the first non-empty line to determine format.
         # JSON array files start with "["; everything else is treated as JSONL
         # (which silently skips malformed lines).
@@ -67,9 +78,9 @@ class CodexParser(BaseParser):
         )
         try:
             if first_nonempty.startswith("["):
-                messages = self._parse_json_array(content, str(file_path))
+                messages = self._parse_json_array(content, str(file_path), project_name)
             else:
-                messages = self._parse_jsonl(content, str(file_path))
+                messages = self._parse_jsonl(content, str(file_path), project_name)
         except Exception:
             return None
 
@@ -80,10 +91,11 @@ class CodexParser(BaseParser):
             session_id=file_path.stem,
             tool=self.tool_name,
             file_path=str(file_path),
+            project=project_name,
             messages=messages,
         )
 
-    def _parse_jsonl(self, content: str, file_path: str) -> List[Message]:
+    def _parse_jsonl(self, content: str, file_path: str, project_name: str = "General") -> List[Message]:
         session_id = str(uuid.uuid4())
         messages: List[Message] = []
         for line in content.splitlines():
@@ -94,12 +106,12 @@ class CodexParser(BaseParser):
                 record = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            msg = self._record_to_message(record, session_id, file_path)
+            msg = self._record_to_message(record, session_id, file_path, project_name)
             if msg:
                 messages.append(msg)
         return messages
 
-    def _parse_json_array(self, content: str, file_path: str) -> List[Message]:
+    def _parse_json_array(self, content: str, file_path: str, project_name: str = "General") -> List[Message]:
         try:
             data = json.loads(content)
         except json.JSONDecodeError:
@@ -108,13 +120,13 @@ class CodexParser(BaseParser):
         session_id = str(uuid.uuid4())
         messages: List[Message] = []
         for record in records:
-            msg = self._record_to_message(record, session_id, file_path)
+            msg = self._record_to_message(record, session_id, file_path, project_name)
             if msg:
                 messages.append(msg)
         return messages
 
     def _record_to_message(
-        self, record: dict, session_id: str, file_path: str
+        self, record: dict, session_id: str, file_path: str, project_name: str = "General"
     ) -> Optional[Message]:
         if not isinstance(record, dict):
             return None
@@ -135,6 +147,7 @@ class CodexParser(BaseParser):
             message=str(content),
             tool=self.tool_name,
             file_path=file_path,
+            project=project_name,
         )
 
 
