@@ -22,7 +22,7 @@ def _args(**kwargs) -> argparse.Namespace:
         "output": None,
         "start_date": None,
         "end_date": None,
-        "include_sidechains": False,
+        "include_sidechains": True,
         "project": None,
         "split_by_project": False,
     }
@@ -94,7 +94,7 @@ class TestParseSuccess:
         cmd_parse(_args(tool="claudecode", file=str(CC_FIXTURE), output=str(out)))
         with open(out, encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))
-        assert len(rows) == 4  # 2 human + 2 assistant from the fixture
+        assert len(rows) == 5  # 2 human + 2 assistant + 1 sidechain (included by default)
 
     def test_tool_column_correct(self, tmp_path):
         out = tmp_path / "out.csv"
@@ -116,17 +116,17 @@ class TestParseSuccess:
         csv_files = list(tmp_path.glob("ai_interactions_*.csv"))
         assert len(csv_files) == 1
 
-    def test_include_sidechains_flag(self, tmp_path):
+    def test_no_sidechains_excludes_sidechain_messages(self, tmp_path):
         out = tmp_path / "out.csv"
         cmd_parse(_args(
             tool="claudecode",
             file=str(CC_FIXTURE),
             output=str(out),
-            include_sidechains=True,
+            include_sidechains=False,
         ))
         with open(out, encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))
-        assert len(rows) == 5  # 4 normal + 1 sidechain message
+        assert len(rows) == 4  # sidechain excluded → only 4 normal messages
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ class TestParseDateFilter:
         assert rc == 0
         with open(out, encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))
-        assert len(rows) == 4
+        assert len(rows) == 5  # 4 normal + 1 sidechain (included by default)
 
     def test_project_filter_includes_only_matching(self, tmp_path):
         out = tmp_path / "out.csv"
@@ -180,7 +180,7 @@ class TestParseDateFilter:
         assert rc == 0
         with open(out, encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))
-        assert len(rows) == 4
+        assert len(rows) == 5  # 4 normal + 1 sidechain, all project=General
 
     def test_project_filter_excludes_nonmatching(self, tmp_path, capsys):
         out = tmp_path / "out.csv"

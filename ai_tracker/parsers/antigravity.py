@@ -177,20 +177,46 @@ class AntigravityParser(BaseParser):
                 project=project_name,
             )
 
-        # AI thinking (readable response — skip pure tool-call records)
+        # AI response — PLANNER_RESPONSE with thinking text
         if source == _AI_SOURCE and rtype == _AI_TYPE:
             thinking = record.get("thinking", "")
-            if not thinking.strip():
-                return None
-            return Message(
-                session_id=session_id,
-                timestamp=ts,
-                role="assistant",
-                message=thinking,
-                tool=self.tool_name,
-                file_path=file_path,
-                project=project_name,
-            )
+            if thinking.strip():
+                return Message(
+                    session_id=session_id,
+                    timestamp=ts,
+                    role="assistant",
+                    message=thinking,
+                    tool=self.tool_name,
+                    file_path=file_path,
+                    project=project_name,
+                )
+            # AI decided to invoke tools — capture the decision verbatim
+            tool_calls = record.get("tool_calls", [])
+            if tool_calls:
+                return Message(
+                    session_id=session_id,
+                    timestamp=ts,
+                    role="assistant",
+                    message=json.dumps(tool_calls),
+                    tool=self.tool_name,
+                    file_path=file_path,
+                    project=project_name,
+                )
+            return None
+
+        # Tool execution results (LIST_DIRECTORY, VIEW_FILE, RUN_COMMAND, etc.)
+        if source == _AI_SOURCE:
+            content = record.get("content", "")
+            if content:
+                return Message(
+                    session_id=session_id,
+                    timestamp=ts,
+                    role="tool",
+                    message=content,
+                    tool=self.tool_name,
+                    file_path=file_path,
+                    project=project_name,
+                )
 
         return None
 

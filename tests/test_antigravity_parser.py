@@ -30,14 +30,16 @@ class TestSingleFileMode:
         human = [m for m in msgs if m.role == "human"]
         assert len(human) == 2
 
-    def test_extracts_two_ai_thinking_messages(self):
+    def test_extracts_three_ai_assistant_messages(self):
+        # 2 with thinking text + 1 tool-call-only PLANNER_RESPONSE
         msgs = self._parse()[0].messages
         ai = [m for m in msgs if m.role == "assistant"]
-        assert len(ai) == 2
+        assert len(ai) == 3
 
     def test_total_message_count(self):
-        # 2 human + 2 assistant (1 tool-only PLANNER_RESPONSE + system records skipped)
-        assert len(self._parse()[0].messages) == 4
+        # 2 human + 3 assistant (2 thinking + 1 tool-call) + 1 tool result = 6
+        # SYSTEM records (CONVERSATION_HISTORY, KNOWLEDGE_ARTIFACTS) are still skipped
+        assert len(self._parse()[0].messages) == 6
 
     def test_human_request_text_extracted(self):
         msgs = self._parse()[0].messages
@@ -55,11 +57,18 @@ class TestSingleFileMode:
         ai_texts = [m.message for m in msgs if m.role == "assistant"]
         assert any("[::-1]" in t for t in ai_texts)
 
-    def test_tool_only_planner_response_skipped(self):
-        # step_index 4 has tool_calls but no thinking — must be skipped
+    def test_tool_call_planner_response_captured(self):
+        # step_index 4 has tool_calls but no thinking — must be captured as assistant
         msgs = self._parse()[0].messages
         ai_texts = [m.message for m in msgs if m.role == "assistant"]
-        assert not any("list_dir" in t for t in ai_texts)
+        assert any("list_dir" in t for t in ai_texts)
+
+    def test_tool_result_records_captured(self):
+        # step_index 5 is a LIST_DIRECTORY result — must appear with role="tool"
+        msgs = self._parse()[0].messages
+        tool_msgs = [m for m in msgs if m.role == "tool"]
+        assert len(tool_msgs) == 1
+        assert "files found" in tool_msgs[0].message
 
     def test_system_records_skipped(self):
         # CONVERSATION_HISTORY and KNOWLEDGE_ARTIFACTS must not appear
@@ -114,7 +123,7 @@ class TestBrainDirectoryMode:
         })
         sessions = AntigravityParser(brain).parse()
         assert len(sessions) == 1
-        assert len(sessions[0].messages) == 4
+        assert len(sessions[0].messages) == 6
 
     def test_skips_dirs_with_no_log_file(self, tmp_path):
         brain = tmp_path / "brain"

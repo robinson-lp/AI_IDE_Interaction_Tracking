@@ -207,10 +207,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Include only messages on or before this date.",
     )
     p.add_argument(
-        "--include-sidechains",
-        action="store_true",
-        default=False,
-        help="(claudecode) Include subagent / sidechain conversations.",
+        "--no-sidechains",
+        action="store_false",
+        default=True,
+        dest="include_sidechains",
+        help="(claudecode) Exclude subagent / sidechain conversations (included by default).",
     )
     p.add_argument(
         "--project",

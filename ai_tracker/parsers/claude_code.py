@@ -30,7 +30,7 @@ class ClaudeCodeParser(BaseParser):
         self,
         file_path: Path,
         tool_name: str = "claudecode",
-        include_sidechains: bool = False,
+        include_sidechains: bool = True,
     ) -> None:
         super().__init__(file_path, tool_name)
         self.include_sidechains = include_sidechains

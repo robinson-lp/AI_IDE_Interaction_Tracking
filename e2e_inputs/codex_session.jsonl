@@ -1,0 +1,2 @@
+{"role": "user", "content": "Explain the difference between list and tuple in Python.", "timestamp": "2026-05-29T10:00:00Z"}
+{"role": "assistant", "content": "Lists are mutable (you can change elements); tuples are immutable. Use tuples for fixed data, lists for data that changes.", "timestamp": "2026-05-29T10:00:04Z"}
