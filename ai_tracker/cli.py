@@ -65,9 +65,10 @@ def _gather_messages(
 
     kwargs: dict = {}
     if tool == "claudecode":
-        kwargs["include_sidechains"] = include_sidechains or bool(
-            tool_cfg.get("include_sidechains", False)
-        )
+        # CLI flag always wins: argparse default=True means include; --no-sidechains means exclude.
+        # Config include_sidechains is intentionally ignored here because argparse cannot
+        # distinguish an explicit --no-sidechains=False from the flag's default True.
+        kwargs["include_sidechains"] = include_sidechains
 
     parser = get_parser(tool, path, **kwargs)
     sessions = parser.parse()

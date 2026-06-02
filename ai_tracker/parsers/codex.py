@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import json
-import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 from ..models import Message, ParsedSession
-from .base import BaseParser, _clean_project_name
+from .base import BaseParser, _clean_project_name, _normalise_role, _parse_timestamp
 
 
 class CodexParser(BaseParser):
@@ -96,7 +94,7 @@ class CodexParser(BaseParser):
         )
 
     def _parse_jsonl(self, content: str, file_path: str, project_name: str = "General") -> List[Message]:
-        session_id = str(uuid.uuid4())
+        session_id = Path(file_path).stem
         messages: List[Message] = []
         for line in content.splitlines():
             line = line.strip()
@@ -117,7 +115,7 @@ class CodexParser(BaseParser):
         except json.JSONDecodeError:
             return []
         records = data if isinstance(data, list) else [data]
-        session_id = str(uuid.uuid4())
+        session_id = Path(file_path).stem
         messages: List[Message] = []
         for record in records:
             msg = self._record_to_message(record, session_id, file_path, project_name)
@@ -131,6 +129,8 @@ class CodexParser(BaseParser):
         if not isinstance(record, dict):
             return None
         role = record.get("role", record.get("type", ""))
+        if role.lower().strip() == "system":
+            return None
         content = record.get("content", record.get("text", record.get("message", "")))
         if isinstance(content, list):
             content = "\n".join(
@@ -149,27 +149,3 @@ class CodexParser(BaseParser):
             file_path=file_path,
             project=project_name,
         )
-
-
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
-
-def _parse_timestamp(value: object) -> Optional[datetime]:
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value)
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except ValueError:
-        return None
-
-
-def _normalise_role(role: str) -> str:
-    r = role.lower().strip()
-    if r in ("human", "user", "h", "u"):
-        return "human"
-    if r in ("assistant", "ai", "model", "bot", "a", "system"):
-        return "assistant"
-    return r

@@ -128,6 +128,23 @@ class TestParseSuccess:
             rows = list(csv.DictReader(fh))
         assert len(rows) == 4  # sidechain excluded → only 4 normal messages
 
+    def test_no_sidechains_flag_wins_over_config(self, tmp_path, monkeypatch):
+        """--no-sidechains (False) must not be overridden by config include_sidechains: true."""
+        from ai_tracker import cli as cli_mod
+        monkeypatch.setattr(
+            cli_mod, "load_config",
+            lambda *_: {
+                "tools": {"claudecode": {"path": str(CC_FIXTURE), "include_sidechains": True}}
+            },
+        )
+        out = tmp_path / "out.csv"
+        # CLI flag include_sidechains=False (--no-sidechains) must exclude sidechains
+        cmd_parse(_args(tool="claudecode", file=str(CC_FIXTURE), output=str(out), include_sidechains=False))
+        with open(out, encoding="utf-8") as fh:
+            rows = list(csv.DictReader(fh))
+        # 4 normal messages only — sidechain excluded despite config saying True
+        assert len(rows) == 4
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # parse — date filtering
@@ -191,6 +208,18 @@ class TestParseDateFilter:
             project="NonmatchingProject",
         ))
         assert rc == 1
+
+    def test_date_filter_does_not_mutate_original_sessions(self, tmp_path):
+        """filter_by_date must not modify the messages list on the original ParsedSession."""
+        from ai_tracker.parsers.claude_code import ClaudeCodeParser
+        from datetime import datetime, timezone
+        parser = ClaudeCodeParser(CC_FIXTURE)
+        sessions_before = parser.parse()
+        original_count = len(sessions_before[0].messages)
+        # Apply a restrictive filter that removes all messages
+        parser.filter_by_date(sessions_before, start=datetime(2030, 1, 1, tzinfo=timezone.utc), end=None)
+        # Original session must be untouched
+        assert len(sessions_before[0].messages) == original_count
 
 
 

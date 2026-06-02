@@ -2,15 +2,11 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 from ..models import Message, ParsedSession
-from .base import BaseParser, _clean_project_name
-
-# Extracts text between <USER_REQUEST> tags in the content field
-_USER_REQUEST_RE = re.compile(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", re.DOTALL)
+from .base import BaseParser, _clean_project_name, _parse_timestamp
 
 # Records to extract — everything else (SYSTEM, tool results) is skipped
 _HUMAN_SOURCE = "USER_EXPLICIT"
@@ -160,7 +156,7 @@ class AntigravityParser(BaseParser):
     ) -> Optional[Message]:
         source = record.get("source", "")
         rtype = record.get("type", "")
-        ts = _parse_iso(record.get("created_at"))
+        ts = _parse_timestamp(record.get("created_at"))
 
         # Human prompt
         if source == _HUMAN_SOURCE and rtype == _HUMAN_TYPE:
@@ -240,12 +236,3 @@ class AntigravityParser(BaseParser):
 def _extract_user_request(content: str) -> str:
     """Return the raw user prompt text without stripping any XML-like metadata tags."""
     return content.strip()
-
-
-def _parse_iso(ts_str: Optional[str]) -> Optional[datetime]:
-    if not ts_str:
-        return None
-    try:
-        return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-    except (ValueError, AttributeError):
-        return None

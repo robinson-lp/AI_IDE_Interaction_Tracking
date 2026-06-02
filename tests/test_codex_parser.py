@@ -164,3 +164,21 @@ class TestCodexParserEdgeCases:
         )
         msgs = CodexParser(f).parse()[0].messages
         assert len(msgs) == 1
+
+    def test_system_role_record_is_skipped(self, tmp_path):
+        f = tmp_path / "s.jsonl"
+        f.write_text(
+            '{"role":"system","content":"You are a helpful assistant."}\n'
+            '{"role":"user","content":"Hello"}\n',
+            encoding="utf-8",
+        )
+        msgs = CodexParser(f).parse()[0].messages
+        assert len(msgs) == 1
+        assert msgs[0].role == "human"
+
+    def test_parse_is_idempotent(self, tmp_path):
+        f = tmp_path / "my-session.jsonl"
+        f.write_text('{"role":"user","content":"Hi"}\n', encoding="utf-8")
+        id_first  = CodexParser(f).parse()[0].messages[0].session_id
+        id_second = CodexParser(f).parse()[0].messages[0].session_id
+        assert id_first == id_second == "my-session"

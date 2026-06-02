@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 from ..models import Message, ParsedSession
-from .base import BaseParser, _clean_project_name
+from .base import BaseParser, _clean_project_name, _normalise_role, _parse_timestamp
 
 
 class ClaudeCodeParser(BaseParser):
@@ -130,7 +129,7 @@ class ClaudeCodeParser(BaseParser):
 
         return Message(
             session_id=record.get("sessionId", session_id),
-            timestamp=_parse_iso(record.get("timestamp")),
+            timestamp=_parse_timestamp(record.get("timestamp")),
             role=_normalise_role(role),
             message=text,
             tool=self.tool_name,
@@ -140,7 +139,7 @@ class ClaudeCodeParser(BaseParser):
 
 
 # ------------------------------------------------------------------
-# Helpers (module-level, reused by other parsers)
+# Helpers
 # ------------------------------------------------------------------
 
 def _extract_text(content: object) -> str:
@@ -154,21 +153,3 @@ def _extract_text(content: object) -> str:
         ]
         return "\n".join(parts)
     return ""
-
-
-def _parse_iso(ts_str: Optional[str]) -> Optional[datetime]:
-    if not ts_str:
-        return None
-    try:
-        return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-    except (ValueError, AttributeError):
-        return None
-
-
-def _normalise_role(role: str) -> str:
-    r = role.lower().strip()
-    if r in ("human", "user"):
-        return "human"
-    if r in ("ai", "assistant", "model"):
-        return "assistant"
-    return r

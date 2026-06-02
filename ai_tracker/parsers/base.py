@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -38,8 +39,7 @@ class BaseParser(ABC):
         for session in sessions:
             in_range = [m for m in session.messages if _in_range(m.timestamp, start, end)]
             if in_range:
-                session.messages = in_range
-                filtered.append(session)
+                filtered.append(replace(session, messages=in_range))
         return filtered
 
 
@@ -55,6 +55,27 @@ def _in_range(
     if end and ts.replace(tzinfo=None) > end.replace(tzinfo=None):
         return False
     return True
+
+
+def _parse_timestamp(value: object) -> Optional[datetime]:
+    """Parse an ISO 8601 string or Unix epoch int/float into a datetime."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value)
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
+
+def _normalise_role(role: str) -> str:
+    r = role.lower().strip()
+    if r in ("human", "user", "h", "u"):
+        return "human"
+    if r in ("ai", "assistant", "model", "bot", "a"):
+        return "assistant"
+    return r
 
 
 def _clean_project_name(name: str) -> str:
