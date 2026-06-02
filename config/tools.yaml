@@ -21,6 +21,7 @@ tools:
     include_sidechains: false
 
   codex:
-    # OpenAI Codex CLI session storage (adjust if your version differs).
-    path: ~/.codex
+    # Codex Desktop stores sessions under ~/.codex/sessions/YYYY/MM/DD/*.jsonl
+    # The parser scans recursively and auto-detects the event-log format.
+    path: ~/.codex/sessions
     parser: codex

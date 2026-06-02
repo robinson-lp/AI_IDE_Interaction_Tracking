@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from ..models import Message, ParsedSession
 from .base import BaseParser, _clean_project_name, _normalise_role, _parse_timestamp
@@ -12,13 +12,16 @@ class CodexParser(BaseParser):
     """
     Parser for OpenAI Codex local session files.
 
-    Codex CLI typically stores session data under ~/.codex/ in JSON or JSONL
-    format.  This parser handles both:
-      - JSONL files (one JSON object per line)
-      - JSON array files (a list of message objects)
+    Handles three distinct formats automatically:
 
-    The expected record schema is:
-      { "role": "user"|"assistant", "content": "...", "timestamp": "..." }
+    1. Codex Desktop event-log JSONL (~/.codex/sessions/YYYY/MM/DD/*.jsonl)
+       First line type is "session_meta".  Extracts user prompts from
+       event_msg/user_message records and final AI responses from
+       event_msg/agent_message records with phase="final_answer".
+
+    2. Simple JSONL (one {"role":..., "content":...} object per line)
+
+    3. JSON array (a list of the same record objects)
 
     Override config/tools.yaml → tools.codex.path if the storage location
     differs in your Codex version.
@@ -57,27 +60,22 @@ class CodexParser(BaseParser):
         except OSError:
             return None
 
-        # Extract project slug from file_path parts if under a projects subfolder, or use default
-        project_name = "General"
-        try:
-            parts = file_path.parts
-            if "projects" in parts:
-                idx = parts.index("projects")
-                if idx + 1 < len(parts):
-                    project_name = _clean_project_name(parts[idx + 1])
-        except Exception:
-            pass
+        first_nonempty = next((ln.strip() for ln in content.splitlines() if ln.strip()), "")
 
-        # Find the first non-empty line to determine format.
-        # JSON array files start with "["; everything else is treated as JSONL
-        # (which silently skips malformed lines).
-        first_nonempty = next(
-            (ln.strip() for ln in content.splitlines() if ln.strip()), ""
-        )
         try:
-            if first_nonempty.startswith("["):
+            _parsed = json.loads(first_nonempty) if first_nonempty else {}
+            first_record = _parsed if isinstance(_parsed, dict) else {}
+        except json.JSONDecodeError:
+            first_record = {}
+
+        try:
+            if _is_codex_desktop_format(first_record):
+                messages, project_name = self._parse_codex_desktop(content, str(file_path))
+            elif first_nonempty.startswith("["):
+                project_name = _project_name_from_path(file_path)
                 messages = self._parse_json_array(content, str(file_path), project_name)
             else:
+                project_name = _project_name_from_path(file_path)
                 messages = self._parse_jsonl(content, str(file_path), project_name)
         except Exception:
             return None
@@ -92,6 +90,80 @@ class CodexParser(BaseParser):
             project=project_name,
             messages=messages,
         )
+
+    # ------------------------------------------------------------------
+    # Codex Desktop event-log format
+    # ------------------------------------------------------------------
+
+    def _parse_codex_desktop(
+        self, content: str, file_path: str
+    ) -> Tuple[List[Message], str]:
+        """Parse the Codex Desktop JSONL event-log format.
+
+        Returns (messages, project_name).  Project name is extracted from the
+        session_meta record's cwd field; messages come from event_msg records
+        with type user_message or agent_message (final_answer phase only).
+        """
+        session_id = Path(file_path).stem
+        project_name = "General"
+        messages: List[Message] = []
+
+        for line in content.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            record_type = record.get("type")
+            payload = record.get("payload", {})
+            ts = _parse_timestamp(record.get("timestamp"))
+
+            if record_type == "session_meta":
+                cwd = payload.get("cwd", "")
+                if cwd:
+                    project_name = _clean_project_name(Path(cwd).name)
+                session_id = payload.get("id", session_id)
+                continue
+
+            if record_type != "event_msg":
+                continue
+
+            msg_type = payload.get("type")
+
+            if msg_type == "user_message":
+                text = payload.get("message", "").strip()
+                if text:
+                    messages.append(Message(
+                        session_id=session_id,
+                        timestamp=ts,
+                        role="human",
+                        message=text,
+                        tool=self.tool_name,
+                        file_path=file_path,
+                        project=project_name,
+                    ))
+
+            elif msg_type == "agent_message" and payload.get("phase") == "final_answer":
+                text = payload.get("message", "").strip()
+                if text:
+                    messages.append(Message(
+                        session_id=session_id,
+                        timestamp=ts,
+                        role="assistant",
+                        message=text,
+                        tool=self.tool_name,
+                        file_path=file_path,
+                        project=project_name,
+                    ))
+
+        return messages, project_name
+
+    # ------------------------------------------------------------------
+    # Simple JSONL / JSON-array format
+    # ------------------------------------------------------------------
 
     def _parse_jsonl(self, content: str, file_path: str, project_name: str = "General") -> List[Message]:
         session_id = Path(file_path).stem
@@ -149,3 +221,27 @@ class CodexParser(BaseParser):
             file_path=file_path,
             project=project_name,
         )
+
+
+# ------------------------------------------------------------------
+# Module-level helpers
+# ------------------------------------------------------------------
+
+def _is_codex_desktop_format(first_record: dict) -> bool:
+    """Return True if the file uses the Codex Desktop event-log format."""
+    return first_record.get("type") in (
+        "session_meta", "event_msg", "response_item", "turn_context"
+    )
+
+
+def _project_name_from_path(file_path: Path) -> str:
+    """Extract a project name from the directory component after 'projects/', if present."""
+    try:
+        parts = file_path.parts
+        if "projects" in parts:
+            idx = parts.index("projects")
+            if idx + 1 < len(parts):
+                return _clean_project_name(parts[idx + 1])
+    except Exception:
+        pass
+    return "General"

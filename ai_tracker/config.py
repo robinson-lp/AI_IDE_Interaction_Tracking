@@ -12,7 +12,7 @@ _HOME = Path.home()
 DEFAULT_TOOL_PATHS: Dict[str, Path] = {
     "antigravity": _HOME / ".gemini" / "antigravity-ide" / "brain",
     "claudecode": _HOME / ".claude" / "projects",
-    "codex": _HOME / ".codex",
+    "codex": _HOME / ".codex" / "sessions",
 }
 
 _DEFAULT_CONFIG: Dict[str, Any] = {
