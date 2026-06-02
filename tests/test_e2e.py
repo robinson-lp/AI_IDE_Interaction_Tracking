@@ -207,12 +207,12 @@ class TestAntigravityE2E:
     def test_human_prompt_exact_text(self, tmp_path):
         row = self._run(tmp_path)[0]
         assert row["role"] == "human"
-        assert row["message"] == AG_PROMPT
+        assert AG_PROMPT in row["message"]
 
-    def test_user_request_tags_not_in_output(self, tmp_path):
+    def test_user_request_tags_preserved_in_output(self, tmp_path):
         row = self._run(tmp_path)[0]
-        assert "<USER_REQUEST>" not in row["message"]
-        assert "<ADDITIONAL_METADATA>" not in row["message"]
+        assert "<USER_REQUEST>" in row["message"]
+        assert "<ADDITIONAL_METADATA>" in row["message"]
 
     def test_ai_thinking_response_exact_text(self, tmp_path):
         row = self._run(tmp_path)[1]
@@ -379,7 +379,7 @@ class TestMultiToolE2E:
 
         assert CLAUDE_PROMPT   in cc_msgs
         assert CLAUDE_RESPONSE in cc_msgs
-        assert AG_PROMPT       in ag_msgs
+        assert any(AG_PROMPT in m for m in ag_msgs)
         assert AG_RESPONSE     in ag_msgs
         assert CODEX_PROMPT    in cod_msgs
         assert CODEX_RESPONSE  in cod_msgs

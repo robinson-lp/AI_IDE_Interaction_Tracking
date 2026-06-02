@@ -46,7 +46,7 @@ def test_antigravity_greeting_prompt(tmp_path: Path):
     # Verify Human Greeting Message
     human_msg = session.messages[0]
     assert human_msg.role == "human"
-    assert human_msg.message == "Hello antigravity! Hope you are doing well."
+    assert "Hello antigravity! Hope you are doing well." in human_msg.message
     assert human_msg.timestamp.isoformat() == "2026-05-26T06:00:00+00:00"
     
     # Verify Assistant Response Message

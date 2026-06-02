@@ -177,8 +177,20 @@ class AntigravityParser(BaseParser):
                 project=project_name,
             )
 
-        # AI response — PLANNER_RESPONSE with thinking text
+        # AI response — PLANNER_RESPONSE with thinking text or content
         if source == _AI_SOURCE and rtype == _AI_TYPE:
+            content = record.get("content", "")
+            if content.strip():
+                return Message(
+                    session_id=session_id,
+                    timestamp=ts,
+                    role="assistant",
+                    message=content,
+                    tool=self.tool_name,
+                    file_path=file_path,
+                    project=project_name,
+                )
+            
             thinking = record.get("thinking", "")
             if thinking.strip():
                 return Message(
@@ -226,17 +238,8 @@ class AntigravityParser(BaseParser):
 # ------------------------------------------------------------------
 
 def _extract_user_request(content: str) -> str:
-    """Return clean user prompt text, stripping all XML-like metadata tags."""
-    # Try full <USER_REQUEST>...</USER_REQUEST> match first
-    m = _USER_REQUEST_RE.search(content)
-    if m:
-        return m.group(1).strip()
-
-    # Fallback: strip the opening tag and cut at the next XML block or end
-    text = re.sub(r"<USER_REQUEST>\s*", "", content)
-    # Remove anything from <ADDITIONAL_METADATA>, <USER_SETTINGS_CHANGE>, etc.
-    text = re.split(r"\s*<[A-Z_]+>", text)[0]
-    return text.strip()
+    """Return the raw user prompt text without stripping any XML-like metadata tags."""
+    return content.strip()
 
 
 def _parse_iso(ts_str: Optional[str]) -> Optional[datetime]:
