@@ -84,7 +84,7 @@ class ClaudeCodeParser(BaseParser):
 
         messages: List[Message] = []
         try:
-            with open(file_path, "r", encoding="utf-8") as fh:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
                 for raw in fh:
                     raw = raw.strip()
                     if not raw:
