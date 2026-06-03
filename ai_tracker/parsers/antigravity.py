@@ -233,6 +233,14 @@ class AntigravityParser(BaseParser):
 # Helpers
 # ------------------------------------------------------------------
 
+_USER_REQUEST_RE = re.compile(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", re.DOTALL)
+_INJECTED_BLOCK_RE = re.compile(r"<[A-Z_]+(?:\s[^>]*)?>.*?</[A-Z_]+>\n?", re.DOTALL)
+
+
 def _extract_user_request(content: str) -> str:
-    """Return the raw user prompt text without stripping any XML-like metadata tags."""
-    return content.strip()
+    """Extract only the text the user typed, stripping all injected metadata blocks."""
+    m = _USER_REQUEST_RE.search(content)
+    if m:
+        return m.group(1).strip()
+    # Fallback: strip all injected uppercase-tag blocks and return remainder
+    return _INJECTED_BLOCK_RE.sub("", content).strip()

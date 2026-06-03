@@ -456,9 +456,9 @@ class TestExtractUserRequest:
     def test_plain_text_returned_stripped(self):
         assert _extract_user_request("  Hello world  ") == "Hello world"
 
-    def test_content_with_tags_returned_as_is(self):
+    def test_user_request_tags_stripped(self):
         content = "<USER_REQUEST>\nHow do I reverse a list?\n</USER_REQUEST>"
-        assert "<USER_REQUEST>" in _extract_user_request(content)
+        assert _extract_user_request(content) == "How do I reverse a list?"
 
     def test_empty_string_returns_empty(self):
         assert _extract_user_request("") == ""

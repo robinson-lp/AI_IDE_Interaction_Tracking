@@ -285,21 +285,21 @@ class TestR04SystemRoleNotMappedToAssistant:
 # R05  Dead _USER_REQUEST_RE regex in antigravity.py
 # ═════════════════════════════════════════════════════════════════════════════
 
-class TestR05NoDeadRegexInAntigravity:
+class TestR05AntigravityTagStripping:
     """
-    BUG: _USER_REQUEST_RE was defined at module level in antigravity.py but
-    never called anywhere. The extract function just did content.strip().
-    FIX: removed the unused constant to eliminate misleading dead code.
+    BUG (original): _USER_REQUEST_RE existed but was never called — extract just did content.strip().
+    FIX (current): _extract_user_request extracts inner text from <USER_REQUEST> tags and strips
+    all injected metadata blocks (<ADDITIONAL_METADATA>, <USER_SETTINGS_CHANGE>, etc.).
     """
 
-    def test_user_request_re_not_in_antigravity_module(self):
+    def test_user_request_re_exists_and_is_used(self):
         import ai_tracker.parsers.antigravity as ag_mod
-        assert not hasattr(ag_mod, "_USER_REQUEST_RE"), (
-            "R05 regression: dead _USER_REQUEST_RE constant is back in antigravity.py"
+        assert hasattr(ag_mod, "_USER_REQUEST_RE"), (
+            "R05: _USER_REQUEST_RE must exist — it is the extraction regex"
         )
 
-    def test_full_content_including_tags_preserved_in_output(self, tmp_path):
-        """The old regex stripped tags; now they must be preserved verbatim."""
+    def test_injected_tags_stripped_from_output(self, tmp_path):
+        """<USER_REQUEST> wrapper and metadata blocks must be stripped; only inner text kept."""
         f = tmp_path / "transcript.jsonl"
         content = (
             "<USER_REQUEST>\nHow do I reverse a list?\n</USER_REQUEST>\n"
@@ -312,8 +312,8 @@ class TestR05NoDeadRegexInAntigravity:
         }
         _write(f, [r])
         msgs = AntigravityParser(f).parse()[0].messages
-        assert "<USER_REQUEST>" in msgs[0].message, (
-            "R05 regression: USER_REQUEST tags were stripped from message"
+        assert msgs[0].message == "How do I reverse a list?", (
+            "R05: injected tags were not stripped from the message"
         )
 
     def test_plain_content_without_tags_still_works(self, tmp_path):

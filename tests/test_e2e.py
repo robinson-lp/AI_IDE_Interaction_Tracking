@@ -209,10 +209,11 @@ class TestAntigravityE2E:
         assert row["role"] == "human"
         assert AG_PROMPT in row["message"]
 
-    def test_user_request_tags_preserved_in_output(self, tmp_path):
+    def test_user_request_tags_stripped_in_output(self, tmp_path):
         row = self._run(tmp_path)[0]
-        assert "<USER_REQUEST>" in row["message"]
-        assert "<ADDITIONAL_METADATA>" in row["message"]
+        assert "<USER_REQUEST>" not in row["message"]
+        assert "<ADDITIONAL_METADATA>" not in row["message"]
+        assert AG_PROMPT in row["message"]
 
     def test_ai_thinking_response_exact_text(self, tmp_path):
         row = self._run(tmp_path)[1]

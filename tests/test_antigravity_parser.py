@@ -46,12 +46,13 @@ class TestSingleFileMode:
         human_texts = [m.message for m in msgs if m.role == "human"]
         assert any("reverse a list" in t for t in human_texts)
 
-    def test_user_request_tags_preserved(self):
+    def test_user_request_tags_stripped(self):
         msgs = self._parse()[0].messages
-        # At least one human message should contain the <USER_REQUEST> tag now
+        # <USER_REQUEST> wrapper tags must be stripped — only the inner text is kept
         human_msgs = [m for m in msgs if m.role == "human"]
-        assert any("<USER_REQUEST>" in m.message for m in human_msgs)
-        assert any("</USER_REQUEST>" in m.message for m in human_msgs)
+        assert human_msgs, "Expected at least one human message"
+        assert not any("<USER_REQUEST>" in m.message for m in human_msgs)
+        assert not any("</USER_REQUEST>" in m.message for m in human_msgs)
 
     def test_ai_thinking_text_extracted(self):
         msgs = self._parse()[0].messages

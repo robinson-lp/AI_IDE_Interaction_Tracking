@@ -132,7 +132,7 @@ class ClaudeCodeParser(BaseParser):
         role = blob.get("role", record.get("type", ""))
         text = _extract_text(blob.get("content", ""))
         if _normalise_role(role) == "human":
-            text = _INJECTED_TAG_RE.sub("", text).strip()
+            text = _INJECTED_TAG_RE.sub("", text)
         if not text:
             return None
 
