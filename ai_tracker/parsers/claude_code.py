@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from pathlib import Path
 from typing import List, Optional
+
+# Tags injected by Claude Code IDE extension — not user-typed content
+_INJECTED_TAG_RE = re.compile(
+    r"<(ide_opened_file|ide_selection|ide_diagnostics|system-reminder|antml:\w+)[^>]*>.*?</\1>\n?",
+    re.DOTALL,
+)
 
 from ..models import Message, ParsedSession
 from .base import BaseParser, _clean_project_name, _normalise_role, _parse_timestamp
@@ -124,6 +131,8 @@ class ClaudeCodeParser(BaseParser):
 
         role = blob.get("role", record.get("type", ""))
         text = _extract_text(blob.get("content", ""))
+        if _normalise_role(role) == "human":
+            text = _INJECTED_TAG_RE.sub("", text).strip()
         if not text:
             return None
 
