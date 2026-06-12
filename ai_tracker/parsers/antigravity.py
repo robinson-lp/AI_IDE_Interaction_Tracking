@@ -111,7 +111,7 @@ class AntigravityParser(BaseParser):
         if not records:
             return None
 
-        project_name = self._extract_project_name(records)
+        project_name = self._extract_project_name(records, log_file)
 
         messages: List[Message] = []
         for record in records:
@@ -130,18 +130,18 @@ class AntigravityParser(BaseParser):
             messages=messages,
         )
 
-    def _extract_project_name(self, records: List[dict]) -> str:
+    def _extract_project_name(self, records: List[dict], log_file: Optional[Path] = None) -> str:
         """Scan session records for active workspace or document metadata to determine the project name."""
         for record in records:
             if record.get("source") == _HUMAN_SOURCE and record.get("type") == _HUMAN_TYPE:
                 content = record.get("content", "")
-                
+
                 # Option A: Look for user workspace mapping:
                 # e.g. "c:\Users\Robin\AI TRACKING SYSTEM PYTHON SCRIPT -> robinson-lp/AI-TRACKING-SYSTEM-PYTHON-SCRIPT"
                 m_workspace = re.search(r"(\w:\\[^\n->]+?)\s*->\s*[^/\n]+/([\w-]+)", content)
                 if m_workspace:
                     return _clean_project_name(m_workspace.group(2))
-                
+
                 # Option B: Look for Active Document:
                 # e.g. "Active Document: c:\Users\Robin\AI TRACKING SYSTEM PYTHON SCRIPT\tests\test_antigravity_greeting.py"
                 m_doc = re.search(r"Active Document:\s*(\w:\\[^\n]+)", content)
@@ -150,12 +150,18 @@ class AntigravityParser(BaseParser):
                     parts = doc_path.parts
                     if len(parts) > 3 and parts[1].lower() == "users":
                         return _clean_project_name(parts[3])
-                
+
                 # Option C: General windows folder fallback for any Users\username\Folder path
                 m_users = re.search(r"\w:\\Users\\[^\\]+\\([^\\]+)", content)
                 if m_users:
                     return _clean_project_name(m_users.group(1))
-                    
+
+        # Option D: derive from the log file's directory path (same strategy as Claude Code)
+        if log_file is not None:
+            name = _project_name_from_antigravity_path(log_file)
+            if name != "General":
+                return name
+
         return "General"
 
     def _record_to_message(
@@ -242,6 +248,43 @@ class AntigravityParser(BaseParser):
 
 _USER_REQUEST_RE = re.compile(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", re.DOTALL)
 _INJECTED_BLOCK_RE = re.compile(r"<[A-Z_]+(?:\s[^>]*)?>.*?</[A-Z_]+>\n?", re.DOTALL)
+
+# Known Antigravity system directory names to skip when deriving a project name from the path
+_SYSTEM_DIRS = frozenset({
+    ".gemini", "antigravity-ide", "brain", ".system_generated", "logs", "users",
+})
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
+)
+_DRIVE_ROOT_RE = re.compile(r"^[A-Za-z]:[\\]?$")
+
+
+def _project_name_from_antigravity_path(log_file: Path) -> str:
+    """Derive a project name from the log file path when message-content regexes find nothing.
+
+    Walks path parts from deepest to shallowest, skipping the filename, known
+    system directories, UUIDs, and the OS user-home components (drive, Users,
+    username).  Returns the first meaningful name found, or 'General'.
+    """
+    parts = log_file.parts
+    # Identify the username slot: parts look like ('C:\\', 'Users', '<name>', ...)
+    # Skip everything up to and including the username so we don't return a username as a project.
+    skip_until = 0
+    for i, part in enumerate(parts):
+        if part.lower() == "users" and i + 1 < len(parts):
+            skip_until = i + 2  # skip drive, 'Users', username
+            break
+
+    for part in reversed(parts[skip_until:-1]):  # -1 to skip the filename
+        if not part or _DRIVE_ROOT_RE.match(part):
+            continue
+        if part.lower() in _SYSTEM_DIRS:
+            continue
+        if _UUID_RE.match(part):
+            continue
+        return _clean_project_name(part)
+
+    return "General"
 
 
 def _extract_user_request(content: str) -> str:

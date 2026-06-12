@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_tracker.parsers.antigravity import AntigravityParser
+from ai_tracker.parsers.antigravity import AntigravityParser, _project_name_from_antigravity_path
 
 FIXTURES = Path(__file__).parent / "fixtures"
 TRANSCRIPT = FIXTURES / "antigravity_transcript.jsonl"
@@ -215,4 +215,86 @@ class TestEdgeCases:
         assert len(sessions) == 1
         assert sessions[0].project == "My Web Backend Project"
         assert sessions[0].messages[0].project == "My Web Backend Project"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Path-based project name fallback (_project_name_from_antigravity_path)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestProjectNameFromAntigravityPath:
+    """Unit tests for the path-based fallback that mirrors Claude Code's strategy.
+
+    These tests use hard-coded fake absolute paths so that pytest's tmp_path
+    prefix does not bleed non-system directory names into the search.
+    """
+
+    def test_standard_brain_path_returns_general(self):
+        # Standard layout has no project component — fallback should yield General
+        log_file = Path(
+            r"C:\Users\Robin\.gemini\antigravity-ide\brain"
+            r"\a1b2c3d4-0000-0000-0000-000000000000"
+            r"\.system_generated\logs\transcript.jsonl"
+        )
+        assert _project_name_from_antigravity_path(log_file) == "General"
+
+    def test_project_folder_between_brain_and_uuid_is_extracted(self):
+        # Non-standard layout: brain/<project>/<uuid>/... — project name should be found
+        log_file = Path(
+            r"C:\Users\Robin\.gemini\antigravity-ide\brain\my-cool-app"
+            r"\a1b2c3d4-0000-0000-0000-000000000000"
+            r"\.system_generated\logs\transcript.jsonl"
+        )
+        assert _project_name_from_antigravity_path(log_file) == "My Cool App"
+
+    def test_project_folder_above_gemini_is_extracted(self):
+        # Custom brain_dir inside a project folder: C:\Users\Robin\MyProject\.gemini\...
+        log_file = Path(
+            r"C:\Users\Robin\MyProject\.gemini\antigravity-ide\brain"
+            r"\a1b2c3d4-0000-0000-0000-000000000000"
+            r"\.system_generated\logs\transcript.jsonl"
+        )
+        assert _project_name_from_antigravity_path(log_file) == "Myproject"
+
+    def test_uuid_alone_returns_general(self):
+        # Only system dirs and a UUID in the path — should return General
+        log_file = Path(
+            r"C:\brain\a1b2c3d4-0000-0000-0000-000000000000"
+            r"\.system_generated\logs\transcript.jsonl"
+        )
+        assert _project_name_from_antigravity_path(log_file) == "General"
+
+    def test_underscored_project_name_is_titled(self):
+        log_file = Path(
+            r"C:\Users\Robin\.gemini\antigravity-ide\brain\data_pipeline_project"
+            r"\a1b2c3d4-0000-0000-0000-000000000000"
+            r"\.system_generated\logs\transcript.jsonl"
+        )
+        assert _project_name_from_antigravity_path(log_file) == "Data Pipeline Project"
+
+    def test_fallback_used_when_no_metadata_in_message(self, tmp_path):
+        # Parser falls back to path when message content has no path metadata
+        session_dir = (
+            tmp_path / ".gemini" / "antigravity-ide" / "brain" / "ai-tracker-tool"
+            / "a1b2c3d4-0000-0000-0000-000000000000" / ".system_generated" / "logs"
+        )
+        session_dir.mkdir(parents=True)
+        transcript = session_dir / "transcript.jsonl"
+        transcript.write_text(
+            json.dumps({
+                "source": "USER_EXPLICIT",
+                "type": "USER_INPUT",
+                "created_at": "2026-06-01T10:00:00Z",
+                "content": "<USER_REQUEST>\nHow does this work?\n</USER_REQUEST>",
+            }) + "\n" +
+            json.dumps({
+                "source": "MODEL",
+                "type": "PLANNER_RESPONSE",
+                "created_at": "2026-06-01T10:00:05Z",
+                "content": "Here is how it works.",
+            }) + "\n",
+            encoding="utf-8",
+        )
+        sessions = AntigravityParser(transcript).parse()
+        assert len(sessions) == 1
+        assert sessions[0].project == "Ai Tracker Tool"
 
