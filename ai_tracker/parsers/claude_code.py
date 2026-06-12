@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import uuid
 from pathlib import Path
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 # Tags injected by Claude Code IDE extension — not user-typed content
 _INJECTED_TAG_RE = re.compile(
@@ -91,9 +94,13 @@ class ClaudeCodeParser(BaseParser):
 
         messages: List[Message] = []
         try:
-            with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
-                for raw in fh:
-                    raw = raw.strip()
+            with open(file_path, "rb") as fh:
+                for lineno, raw_bytes in enumerate(fh, 1):
+                    try:
+                        raw = raw_bytes.decode("utf-8").strip()
+                    except UnicodeDecodeError:
+                        logger.warning("Skipping line %d in %s: invalid UTF-8 bytes", lineno, file_path)
+                        continue
                     if not raw:
                         continue
                     try:

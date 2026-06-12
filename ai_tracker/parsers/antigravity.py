@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 from ..models import Message, ParsedSession
 from .base import BaseParser, _clean_project_name, _parse_timestamp
@@ -88,9 +91,13 @@ class AntigravityParser(BaseParser):
     def _parse_log_file(self, log_file: Path, session_id: str) -> Optional[ParsedSession]:
         records: List[dict] = []
         try:
-            with open(log_file, "r", encoding="utf-8", errors="replace") as fh:
-                for raw in fh:
-                    raw = raw.strip()
+            with open(log_file, "rb") as fh:
+                for lineno, raw_bytes in enumerate(fh, 1):
+                    try:
+                        raw = raw_bytes.decode("utf-8").strip()
+                    except UnicodeDecodeError:
+                        logger.warning("Skipping line %d in %s: invalid UTF-8 bytes", lineno, log_file)
+                        continue
                     if not raw:
                         continue
                     try:

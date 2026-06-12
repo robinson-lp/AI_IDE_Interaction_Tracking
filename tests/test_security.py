@@ -371,18 +371,21 @@ class TestSEC05EncodingAttacks:
         assert len(msgs) == 1
         assert "\x00" in msgs[0].message  # preserved
 
-    def test_malformed_utf8_file_handled_with_replacement(self, tmp_path):
+    def test_malformed_utf8_line_skipped_with_warning(self, tmp_path, caplog):
         f = tmp_path / "bad_utf8.jsonl"
-        # Write valid JSON prefix, then corrupt bytes, then valid JSON suffix
+        # Write a corrupt line followed by a valid JSONL record
         good_record = json.dumps(_cc("After bad bytes")).encode("utf-8")
         bad_bytes = b'{"role":"user","content":"\xff\xfe bad utf8"}\n' + good_record + b"\n"
         f.write_bytes(bad_bytes)
-        # All parsers open with errors="replace" — must not raise UnicodeDecodeError
-        msgs = _parse_cc(f)
-        # The valid CC-format record after the corrupt line must be parsed
+        import logging
+        with caplog.at_level(logging.WARNING, logger="ai_tracker.parsers.claude_code"):
+            msgs = _parse_cc(f)
+        # Bad line is skipped with a warning; valid record after it is still parsed
         assert isinstance(msgs, list)
         assert any(m.message == "After bad bytes" for m in msgs), \
-            "Valid record after corrupt bytes was not parsed"
+            "Valid record after corrupt line was not parsed"
+        assert any("invalid UTF-8" in r.message for r in caplog.records), \
+            "No warning was logged for the bad line"
 
     def test_utf8_bom_at_start_of_file_handled(self, tmp_path):
         f = tmp_path / "bom.jsonl"

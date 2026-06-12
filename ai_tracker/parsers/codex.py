@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 from ..models import Message, ParsedSession
 from .base import BaseParser, _clean_project_name, _normalise_role, _parse_timestamp
@@ -56,7 +59,14 @@ class CodexParser(BaseParser):
 
     def _parse_file(self, file_path: Path) -> Optional[ParsedSession]:
         try:
-            content = file_path.read_text(encoding="utf-8", errors="replace")
+            lines = []
+            with open(file_path, "rb") as fh:
+                for lineno, raw_bytes in enumerate(fh, 1):
+                    try:
+                        lines.append(raw_bytes.decode("utf-8"))
+                    except UnicodeDecodeError:
+                        logger.warning("Skipping line %d in %s: invalid UTF-8 bytes", lineno, file_path)
+            content = "".join(lines)
         except OSError:
             return None
 
